@@ -1,16 +1,48 @@
-# password_manager
+# Password Manager
 
-A new Flutter project.
+一个基于 Flutter 的跨平台密码管理器，提供密码生成、加密存储、生物识别解锁、备份与恢复等功能，侧重于本地安全与可移植性。
 
-## Getting Started
+**主要特性**
 
-This project is a starting point for a Flutter application.
+- **密码生成**：可定制长度与字符集的强密码生成功能。
+- **本地安全存储**：使用平台安全存储与加密数据库保存凭据。
+- **加密保护**：通过主密码派生密钥（如 PBKDF2），使用 AES 系列算法对数据加密。
+- **生物识别解锁**：支持指纹/面容等生物认证以便快速解锁（基于平台生物库）。
+- **备份与恢复**：可导出/导入加密备份文件，支持本地或外部存储（可扩展至云端）。
+- **跨平台支持**：Android、iOS、Web、Windows、macOS、Linux（取决于目标平台构建）。
+- **测试覆盖**：包含核心加密、派生与密码生成的单元测试（参考 `test/` 目录）。
 
-A few resources to get you started if this is your first Flutter project:
+**项目结构（概要）**
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- `lib/`：应用主代码。
+	- `core/`：加密、备份、生物识别等核心服务实现。
+	- `data/`：数据存储与持久化实现。
+	- `domain/`：业务模型与用例。
+	- `presentation/`：UI 与界面层。
+- `test/`：单元测试（如 `aes_service_test.dart`, `key_derivation_test.dart` 等）。
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+**快速开始**
+
+1. 环境：确保已安装 Flutter SDK，目标平台工具链（Android/iOS 等）。
+2. 获取依赖并运行：
+
+```bash
+flutter pub get
+flutter run
+```
+
+3. 运行单元测试：
+
+```bash
+flutter test
+```
+
+**贡献与扩展**
+
+- 可按模块添加多因素认证、云同步（端到端加密）、或导入浏览器导出的凭据。
+- 开发时请关注 `core/` 中的加密实现，避免改变默认的密钥派生与加密参数而不同时更新兼容性说明。
+
+**致谢与参考**
+
+本项目基于 Flutter 框架与社区库构建。详情请参阅仓库中文件与测试用例以了解实现细节。
+
