@@ -10,6 +10,12 @@ class SecureStorageService {
 
   final FlutterSecureStorage _storage;
 
+  /// Store wrapping salt and encrypted data key together in one record.
+  Future<String?> getAuthState() => _storage.read(key: 'auth_state_v3');
+
+  Future<void> saveAuthState(String state) =>
+      _storage.write(key: 'auth_state_v3', value: state);
+
   SecureStorageService() : _storage = const FlutterSecureStorage();
 
   Future<void> saveMasterPasswordHash(String hash) async {
@@ -66,7 +72,8 @@ class SecureStorageService {
 
   Future<int> getAutoLockMinutes() async {
     final value = await _storage.read(key: _keyAutoLockMinutes);
-    return value != null ? int.parse(value) : 5;
+    final minutes = int.tryParse(value ?? '') ?? 5;
+    return [0, 1, 5, 10, 30].contains(minutes) ? minutes : 5;
   }
 
   Future<void> deleteAll() async {

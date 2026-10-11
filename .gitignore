@@ -32,6 +32,16 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/android/build/
+/dist/
+*.apk
+*.db
+*.db-shm
+*.db-wal
+*.jks
+*.keystore
+.env
+.env.*
 
 # Symbolication related
 app.*.symbols

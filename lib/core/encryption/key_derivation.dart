@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 
@@ -30,12 +31,15 @@ class KeyDerivation {
   }) async {
     final passwordBytes = Uint8List.fromList(utf8.encode(password));
     final saltBytes = Uint8List.fromList(base64Decode(salt));
-    return _pbkdf2(
-      passwordBytes: passwordBytes,
-      saltBytes: saltBytes,
-      iterations: iterations,
-      length: length,
-    );
+    if (iterations < 1 || length < 1 || length > 1024) {
+      throw ArgumentError('Invalid PBKDF2 parameters');
+    }
+    return Isolate.run(() => _pbkdf2(
+          passwordBytes: passwordBytes,
+          saltBytes: saltBytes,
+          iterations: iterations,
+          length: length,
+        ));
   }
 
   static String buildPasswordVerifier(Uint8List keyBytes) {
