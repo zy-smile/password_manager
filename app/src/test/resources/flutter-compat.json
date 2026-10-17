@@ -1,0 +1,24 @@
+{
+  "password": " 旧主密码123ABC! ",
+  "backupPassword": "备份密码987ABC!",
+  "dataKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "masterRecord": "{\"version\":3,\"kdf\":\"PBKDF2-SHA256\",\"iterations\":150000,\"salt\":\"PGZ1LtskG86eX8hDdUsBuA==\",\"wrappedKey\":\"{\\\"version\\\":2,\\\"algorithm\\\":\\\"AES-256-GCM\\\",\\\"iv\\\":\\\"+OGlMEIEQQFa5B15\\\",\\\"cipherText\\\":\\\"4+QSgb5qta1fGyKx0+wJcJWpJGIpNwXrAVBa/JqgXM3hUCS/HMLlzqZHLuBGj8v1IbJugGIDQNPoSwOB\\\"}\"}",
+  "field": "{\"version\":2,\"algorithm\":\"AES-256-GCM\",\"iv\":\"BKCH6Ednb9FP7qnu\",\"cipherText\":\"JG1c71R+IPyWHrj7cqw6LHu7CclwCEOjp5jvKQtuT7ldxBIVRSpB3i8ZLfAe5Zz8\"}",
+  "backup2": {
+    "version": "2.0",
+    "encryption": "AES-256-GCM",
+    "kdf": "PBKDF2-SHA256",
+    "iterations": 150000,
+    "salt": "j04l7LqUD2n3QDLE6bmUVw==",
+    "iv": "P0qp9MZQL+EYaQHQ",
+    "cipherText": "+AEzytTLxEYTZAu01MCRK6AxQI6zwUu5+2g4TKoz51GuDnFMIYsy30H5MuiOWauJGt3ZQSjzzxWoMxqf94mDuMOHjPc5li4K3KXCe4acoqJJLJZZm+0yn83MmrBsL/grsh+y6IapCHl2rDGswYjJyppGfm6xPatGHsxWYwFyQ5/ZYwTWnJQhG5YEm+A9TuCSOvqk6w8neN/1/NQQN4Irz/DGdhhJhvTnEUhXgG8mytzzXMzzjg9sl9BPNsCLHiYcH3XsfyVIsdVC5NkN8gnSI4NtfqZIMWQHK/rveVZYBz9Yb12wRUxvf6Q6gLsOesh5k2/pXlD9VNrpSEJwARrpBh7Zd0IatMI0U0XKlUFGhEb9vDw7Y8YvV2ICxQ4K2RKLkAbjl87qBz5pEd5LtF+9EsPgadoVaDy59muqCQ=="
+  },
+  "backup1": {
+    "version": "1.0",
+    "encryption": "AES-256-GCM",
+    "salt": "j04l7LqUD2n3QDLE6bmUVw==",
+    "iv": "Ra8ulYI11YvpRQLA",
+    "cipherText": "RhOzqlIVd/jjX7KMgnwn4mZUiizP1zTdI8YYiO7hhIkQpuJE0Vbfd1Mz/SA3RwvpMf/BauFvMa9vmKO7jH/NPPloulpGkx/FmKlcYoIj1ixWqX6nZi2EPRSbMWfkA9RJtNpGuw877uvSpWpiiNAj17TYUpHj5YRBudsJ1By7lxWc4Yei9vzUGNAM6RdurvnPsyPYMBcTyxdbxCd4q8QBjhXfyFD6YfyZwxir7OC4QKtKaR/NHY3vZQK9HqQiUargszou8w1cD2UGxvHKXFTU+JAGAmpJPF6JcZcEilJNNJr1dOhbVV6gt8uN4Huc5kn2MZIxi15jvjLd/H+so92c9GHazGtGJ7vgadg4oOUshWym6w/zWoj248I8QoXjrJy8wGE8UMBYfVMLMxSlJxfync4uLgeMyX5AOHL32w==",
+    "hash": "05847197129fa29ca5092ca27e38d35ecea669f1b56abd0e80375f32b8a8b581"
+  }
+}
