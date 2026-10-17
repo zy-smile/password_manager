@@ -22,10 +22,10 @@ import javax.crypto.spec.SecretKeySpec
 
 @RunWith(AndroidJUnit4::class)
 class LegacyMigrationTest {
-    @Test fun oldFlutterPreferencesAndV3DatabaseUpgradeInPlace() {
+    @Test fun legacyPreferencesAndV3DatabaseUpgradeInPlace() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        val fixture = JSONObject(instrumentation.context.assets.open("flutter-compat.json").bufferedReader().use { it.readText() })
+        val fixture = JSONObject(instrumentation.context.assets.open("legacy-vault-compat.json").bufferedReader().use { it.readText() })
         context.deleteDatabase("password_vault.db")
         SecureStore(context).clear()
         val alias = context.packageName + ".FlutterSecureStoragePluginKey"

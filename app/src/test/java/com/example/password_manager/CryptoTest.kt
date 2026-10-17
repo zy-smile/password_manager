@@ -8,7 +8,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CryptoTest {
-    private fun fixture() = JSONObject(requireNotNull(javaClass.getResource("/flutter-compat.json")).readText())
+    private fun fixture() = JSONObject(requireNotNull(javaClass.getResource("/legacy-vault-compat.json")).readText())
     @Test fun pbkdf2MatchesPublishedVector() {
         val key = Crypto.derive("password", "salt".toByteArray(), 1)
         assertEquals("120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b", key.joinToString("") { "%02x".format(it) })
@@ -19,20 +19,20 @@ class CryptoTest {
         assertEquals("cea7403d4d606b6e074ec5d3baf39d18d0d1c8a799996bf0265b98b5d48ab919",
             Crypto.decode(payload.getString("cipherText")).joinToString("") { "%02x".format(it) })
     }
-    @Test fun flutterMasterRecordAndEncryptedFieldsRemainReadable() {
+    @Test fun legacyMasterRecordAndEncryptedFieldsRemainReadable() {
         val f = fixture()
         val key = Crypto.unwrapMaster(f.getString("password"), f.getString("masterRecord"))
         assertArrayEquals(Crypto.decode(f.getString("dataKey")), key)
         assertEquals("旧版账号与密码 Secret 123", Crypto.decrypt(f.getString("field"), key))
     }
-    @Test fun flutterBackup2RestoresWithIndependentPassword() {
+    @Test fun legacyBackup2RestoresWithIndependentPassword() {
         val f = fixture()
         val accounts = BackupCodec.decode(f.getJSONObject("backup2").toString(), f.getString("backupPassword"))
         assertEquals("Flutter兼容账号", accounts.single().title)
         assertEquals("安全密码123!", accounts.single().password)
         assertEquals("账号@example.com", accounts.single().username)
     }
-    @Test fun flutterBackup1RestoresWithOriginalDataKey() {
+    @Test fun legacyBackup1RestoresWithOriginalDataKey() {
         val f = fixture()
         val accounts = BackupCodec.decode(f.getJSONObject("backup1").toString(), "", Crypto.decode(f.getString("dataKey")))
         assertEquals("fixture-1", accounts.single().id)
