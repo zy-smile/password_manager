@@ -1,6 +1,6 @@
 # 个人助手 · 原生 Android
 
-本项目已从 Flutter 重写为 **Kotlin + Jetpack Compose** 原生 Android 应用，版本 **2.0.0**。根目录可直接使用 Android Studio 打开，构建和运行均不需要 Flutter / Dart SDK。
+本项目已从 Flutter 重写为 **Kotlin + Jetpack Compose** 原生 Android 应用，版本 **2.0.1**。根目录可直接使用 Android Studio 打开，构建和运行均不需要 Flutter / Dart SDK。
 
 ## 功能
 
@@ -22,25 +22,19 @@
 
 ### 加密备份
 
-使用独立备份密码导出兼容 2.0 格式的 JSON，可通过系统分享保存到应用外，使用系统文件选择器恢复。GCM 认证、版本、派生参数、记录字段和重复 ID 校验通过后，事务覆盖账号。
+使用独立备份密码导出 2.0 格式的 JSON。点击“选择保存位置”后，在系统“另存为”窗口中选择下载、文档、SD 卡或支持的网盘目录，并修改文件名。文件直接写入用户选择的文档位置，不保存在应用缓存或应用专属目录，卸载应用或清空应用数据不会删除已成功导出的文件。恢复使用系统文件选择器。GCM 认证、版本、派生参数、记录字段和重复 ID 校验通过后，事务覆盖账号。
 
-备份只包含密码箱，不包含衣服、照片或设置。恢复前应先备份当前数据。备份密码遗忘无法找回。旧 1.0 备份仍需原保险箱数据密钥。
+备份只包含密码箱，不包含衣服、照片或设置。恢复前应先备份当前数据。备份密码遗忘无法找回。仅支持当前 2.0 备份格式，不再读取旧 1.0 备份。
 
 ### 衣橱
 
 衣服信息和照片增删改查、收藏；分类、季节多选、颜色、品牌、购买日期、备注；相册选图和系统相机拍照；关键字/分类/季节筛选；总数、分类和季节统计。衣服数据和照片明文存储。替换照片在数据库保存成功后才删除旧照片。
 
-## 从旧 Flutter 版升级
+## 数据支持范围
 
-- 沿用包名 `com.example.password_manager`，versionCode 从 2 升至 3。
-- **必须使用相同签名覆盖安装，且不要卸载旧版或清除应用数据。** 当前测试 APK 使用本机原有 Android Debug 签名。
-- 保留 SQLite 文件名 `password_vault.db`，兼容旧 v1/v2/v3 表结构，升级为版本 4 并增加排序索引。
-- 原生只读兼容器读取本项目原先默认的 flutter_secure_storage 9.x RSA-PKCS1 + AES-CBC/GCM 格式，使用设备原有 Keystore 密钥；成功验证主密码后写入原生加密安全存储。
-- 兼容 v3 包装密钥、v2 派生数据密钥，以及更早的 CBC 账号格式。迁移失败时不重置主密码或删除旧数据。
-- 原路径下的衣服照片继续读取。旧生物识别开关不自动继承，请在原生版解锁后重新开启。
-- 对于其他应用、自定义安全存储算法、丢失 Keystore 密钥的安装，不能保证直接迁移。优先使用旧版导出独立密码备份，再恢复到原生版。
+本版已移除旧安全存储读取器、旧密码派生认证、CBC 解密、旧数据库迁移、旧照片路径和旧备份恢复逻辑。当前原生版的认证记录和数据库继续正常使用，不自动清空数据；不支持的旧安装需要重新设置。
 
-当前默认分支只维护原生 Android 工程。旧跨平台源码、旧安装包、源码归档及 IDE 配置已从本地工作目录清理；Git 历史保留，不改写历史提交。
+保存文件时开启“离开即锁”也能正常导出：系统保存窗口期间只保留已加密内容，返回后仍保持锁定。取消保存不会提示成功；写入或关闭文件失败会提示错误并尝试删除此次不完整的导出。待保存内容 15 分钟后过期，进程退出后需重新导出。
 
 ## 工程结构
 
@@ -48,11 +42,11 @@
 app/src/main/java/com/example/password_manager/
   MainActivity.kt           生命周期、系统生物识别入口
   AppViewModel.kt           会话、状态、异步任务和业务协调
-  core/                     JCA 加密、加密备份、Keystore、安全存储兼容
+  core/                     JCA 加密、加密备份、Keystore、文档保存
   data/                     实体、SQLiteOpenHelper、认证 Repository
   ui/                       Compose 页面、表单和对话框
-app/src/test/               JVM 单元测试、旧 Dart 实际生成的兼容性样本
-app/src/androidTest/        数据库、Keystore、旧版迁移和 Compose 操作测试
+app/src/test/               JVM 单元测试
+app/src/androidTest/        数据库、Keystore、Compose 操作和系统另存为测试
 ```
 
 SQLite 使用 Android SDK 自带实现；应用中没有 Flutter 引擎、Dart 代码、WebView 套壳或跨平台运行时。Android SDK 不支持的平台已从活动工程移除。
@@ -79,6 +73,8 @@ macOS/Linux：使用 `./gradlew`。首次构建需联网下载 Google Maven / Ma
 
 ## 当前范围
 
-不包含云同步、TOTP、共享、自定义分类管理、独立手机号/邮箱字段、最近使用记录或衣橱备份。生物识别、相机与分享仍需真实设备验收。具体构建和测试结果见《验证与构建记录.md》。
+不包含云同步、TOTP、共享、自定义分类管理、独立手机号/邮箱字段、最近使用记录或衣橱备份。生物识别、相机和不同文档提供程序仍需真实设备验收。具体构建和测试结果见《验证与构建记录.md》。
 
 技术参考：[Compose 编译插件](https://developer.android.com/develop/ui/compose/setup-compose-dependencies-and-compiler)、[BiometricPrompt 与加密操作](https://developer.android.com/identity/sign-in/biometric-auth)。
+
+文件保存参考：[Android Storage Access Framework](https://developer.android.com/training/data-storage/shared/documents-files)。

@@ -3,7 +3,6 @@
 package com.example.password_manager.ui
 
 import android.app.DatePickerDialog
-import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -51,6 +50,15 @@ private val LocalInteraction = staticCompositionLocalOf<() -> Unit> { {} }
 fun AssistantApp(vm: AppViewModel, biometric: (Boolean, String?) -> Unit) {
     val state = vm.state
     val snackbar = remember { SnackbarHostState() }
+    // Keep this launcher outside the authenticated UI so immediate locking while
+    // the system file picker is visible does not unregister its result callback.
+    val saveDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) {
+        vm.completeExport(it)
+    }
+    val chooseSaveLocation: (String) -> Unit = { fileName ->
+        try { saveDocument.launch(fileName) }
+        catch (e: Exception) { vm.cancelExport(); vm.message("无法打开保存窗口：${e.message}") }
+    }
     val colors = if (isSystemInDarkTheme()) darkColorScheme(primary = Color(0xFFB7C4FF))
         else lightColorScheme(primary = Color(0xFF5265BD), secondary = Color(0xFF576280), background = Color(0xFFF7F8FC), surface = Color(0xFFF7F8FC))
     MaterialTheme(colorScheme = colors) {
@@ -68,7 +76,7 @@ fun AssistantApp(vm: AppViewModel, biometric: (Boolean, String?) -> Unit) {
                         Button(onClick = vm::initialize, enabled = !state.busy) { Text("重试") }
                     }
                     !state.unlocked -> key(state.session) { LockScreen(vm, biometric) }
-                    else -> key(state.session) { Home(vm, biometric) }
+                    else -> key(state.session) { Home(vm, biometric, chooseSaveLocation) }
                 }
                 if(state.busy) LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
@@ -107,7 +115,7 @@ private fun LockScreen(vm: AppViewModel, biometric: (Boolean, String?) -> Unit) 
 }
 
 @Composable
-private fun Home(vm: AppViewModel, biometric: (Boolean, String?) -> Unit) {
+private fun Home(vm: AppViewModel, biometric: (Boolean, String?) -> Unit, chooseSaveLocation: (String) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var editingAccount by remember { mutableStateOf<Credential?>(null) }
     var editingClothing by remember { mutableStateOf<Clothing?>(null) }
@@ -136,7 +144,7 @@ private fun Home(vm: AppViewModel, biometric: (Boolean, String?) -> Unit) {
                 when(tab) {
                     0 -> VaultList(vm, { detail = it }, vm::favorite)
                     1 -> WardrobeList(vm, { editingClothing = it })
-                    else -> Settings(vm, biometric)
+                    else -> Settings(vm, biometric, chooseSaveLocation)
                 }
             }
         }
@@ -351,7 +359,7 @@ private fun ClothingEditor(initial: Clothing, vm: AppViewModel, back: () -> Unit
 }
 
 @Composable
-private fun Settings(vm: AppViewModel, biometric: (Boolean, String?) -> Unit) {
+private fun Settings(vm: AppViewModel, biometric: (Boolean, String?) -> Unit, chooseSaveLocation: (String) -> Unit) {
     val context = LocalContext.current
     var changePassword by remember { mutableStateOf(false) }
     var backupMode by remember { mutableStateOf<String?>(null) }
@@ -378,7 +386,7 @@ private fun Settings(vm: AppViewModel, biometric: (Boolean, String?) -> Unit) {
         SettingButton("立即锁定", "清除会话中的敏感信息", vm::lock)
         Section("加密备份")
         Text("使用独立备份密码，可在其他设备恢复。仅包含密码箱账号，不包含衣服和照片。", style = MaterialTheme.typography.bodySmall)
-        SettingButton("导出并分享备份", "请将文件保存到应用以外的位置") { backupMode = "export" }
+        SettingButton("导出加密备份", "选择目录和文件名，卸载应用后仍保留") { backupMode = "export" }
         SettingButton("从文件恢复备份", "校验成功后覆盖密码箱账号") { picker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
         Section("工具")
         SettingButton("密码生成器", "自定义长度和字符类型") { generator = true }
@@ -389,12 +397,9 @@ private fun Settings(vm: AppViewModel, biometric: (Boolean, String?) -> Unit) {
     }
     if(changePassword) ChangePasswordDialog(vm) { changePassword = false }
     if(backupMode != null) BackupDialog(backupMode == "export", vm.state.busy, { backupMode = null }) { password ->
-        if(backupMode == "export") vm.exportBackup(password) { uri ->
+        if(backupMode == "export") vm.prepareExport(password) { fileName ->
             backupMode = null
-            try { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type = "application/json"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                clipData = android.content.ClipData.newUri(context.contentResolver, "加密备份", uri)
-            }, "保存或分享加密备份")) } catch (e: Exception) { vm.message("分享失败：${e.message}") }
+            chooseSaveLocation(fileName)
         } else importUri?.let { vm.importBackup(it, password) { backupMode = null; importUri = null } }
     }
     if(generator) GeneratorDialog(vm) { generator = false }
@@ -417,8 +422,8 @@ private fun BackupDialog(exporting: Boolean, busy: Boolean, close: () -> Unit, s
     var password by remember { mutableStateOf("") }; var confirm by remember { mutableStateOf("") }; var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(onDismissRequest = close, title = { Text(if(exporting) "导出加密备份" else "覆盖恢复密码箱") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState())) {
-            Text(if(exporting) "设置独立备份密码（至少 8 位）。请牢记此密码，换设备恢复时需要使用。"
-                else "恢复将覆盖当前密码箱中的全部账号，建议先导出当前数据。输入备份密码；旧版 1.0 备份可留空，仅支持原密钥恢复。")
+            Text(if(exporting) "设置独立备份密码（至少 8 位），下一步选择保存目录和文件名。保存在下载、文档或网盘中的文件不会随应用卸载而删除。请牢记备份密码。"
+                else "恢复将覆盖当前密码箱中的全部账号，建议先导出当前数据。请输入导出时设置的备份密码，仅支持当前 2.0 备份格式。")
             SecretField("备份密码", password, { password = it })
             if(exporting) SecretField("确认备份密码", confirm, { confirm = it })
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -427,7 +432,7 @@ private fun BackupDialog(exporting: Boolean, busy: Boolean, close: () -> Unit, s
         if(exporting && password.length < 8) error = "备份密码至少 8 位"
         else if(exporting && password != confirm) error = "两次输入不一致"
         else submit(password)
-    }, enabled = !busy) { Text(if(exporting) "导出并分享" else "确认覆盖恢复") } }, dismissButton = { TextButton(onClick = close) { Text("取消") } })
+    }, enabled = !busy) { Text(if(exporting) "选择保存位置" else "确认覆盖恢复") } }, dismissButton = { TextButton(onClick = close) { Text("取消") } })
 }
 
 @Composable

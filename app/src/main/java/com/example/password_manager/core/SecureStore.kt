@@ -10,13 +10,10 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.IvParameterSpec
 
 class SecureStore(private val context: Context) {
     private val prefs = context.getSharedPreferences("native_assistant", Context.MODE_PRIVATE)
     private val keystore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-    val legacy = LegacyFlutterReader(context)
-    val hasNativeRecord get() = prefs.contains("master_record")
     private fun deviceKey(): SecretKey {
         val alias = "personal_assistant_device_v1"
         return (keystore.getKey(alias, null) as? SecretKey) ?: KeyGenerator.getInstance("AES", "AndroidKeyStore").run {
@@ -26,7 +23,7 @@ class SecureStore(private val context: Context) {
         }
     }
     fun record(): String? {
-        val value = prefs.getString("master_record", null) ?: return legacy.read("auth_state_v3")
+        val value = prefs.getString("master_record", null) ?: return null
         val json = JSONObject(value)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, deviceKey(), GCMParameterSpec(128, Crypto.decode(json.getString("iv"))))
@@ -40,8 +37,7 @@ class SecureStore(private val context: Context) {
         check(prefs.edit().putString("master_record", value).commit()) { "无法保存主密码配置" }
     }
     var lockMinutes: Int
-        get() = if (prefs.contains("lock_minutes")) prefs.getInt("lock_minutes", 5) else
-            (legacy.read("auto_lock_minutes")?.toIntOrNull() ?: 5).takeIf { it in listOf(0,1,5,10,30) } ?: 5
+        get() = prefs.getInt("lock_minutes", 5).takeIf { it in listOf(0,1,5,10,30) } ?: 5
         set(value) { require(value in listOf(0,1,5,10,30)); check(prefs.edit().putInt("lock_minutes", value).commit()) }
     var failures: Int
         get() = prefs.getInt("failures", 0)
@@ -86,40 +82,5 @@ class SecureStore(private val context: Context) {
     fun clear() {
         disableBiometric()
         check(prefs.edit().clear().commit())
-        legacy.clear()
-    }
-}
-
-/** Read-only compatibility for the exact default flutter_secure_storage 9.x format used by v1. */
-class LegacyFlutterReader(private val context: Context) {
-    private val prefs = context.getSharedPreferences("FlutterSecureStorage", Context.MODE_PRIVATE)
-    private val prefix = "VGhpcyBpcyB0aGUgcHJlZml4IGZvciBhIHNlY3VyZSBzdG9yYWdlCg_"
-    fun has(key: String) = prefs.contains(prefix + key)
-    fun read(key: String): String? {
-        val value = prefs.getString(prefix + key, null) ?: return null
-        require(prefs.getString("FlutterSecureSAlgorithmKey", "RSA_ECB_PKCS1Padding") == "RSA_ECB_PKCS1Padding") {
-            "旧版安全存储配置不受支持，请先使用旧版导出加密备份"
-        }
-        val gcm = prefs.getString("FlutterSecureSAlgorithmStorage", "AES_CBC_PKCS7Padding") == "AES_GCM_NoPadding"
-        val keyName = if (gcm) "VGhpcyBpcyB0aGUga2V5IGZvcihBIHNlY3XyZZBzdG9yYWdlIEFFUyBLZXkK"
-            else "VGhpcyBpcyB0aGUga2V5IGZvciBhIHNlY3VyZSBzdG9yYWdlIEFFUyBLZXkK"
-        val wrapped = context.getSharedPreferences("FlutterSecureKeyStorage", Context.MODE_PRIVATE)
-            .getString(keyName, null) ?: error("旧版安全密钥缺失，请勿清除应用数据")
-        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val privateKey = store.getKey(context.packageName + ".FlutterSecureStoragePluginKey", null)
-            ?: error("旧版设备密钥不可用，请通过备份恢复")
-        val rsa = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-        rsa.init(Cipher.UNWRAP_MODE, privateKey)
-        val aes = rsa.unwrap(Crypto.decode(wrapped), "AES", Cipher.SECRET_KEY)
-        val bytes = Crypto.decode(value)
-        val ivSize = if (gcm) 12 else 16
-        val cipher = Cipher.getInstance(if (gcm) "AES/GCM/NoPadding" else "AES/CBC/PKCS7Padding")
-        if (gcm) cipher.init(Cipher.DECRYPT_MODE, aes, GCMParameterSpec(128, bytes.copyOfRange(0, ivSize)))
-        else cipher.init(Cipher.DECRYPT_MODE, aes, IvParameterSpec(bytes.copyOfRange(0, ivSize)))
-        return String(cipher.doFinal(bytes.copyOfRange(ivSize, bytes.size)), Charsets.UTF_8)
-    }
-    fun clear() {
-        check(prefs.edit().clear().commit())
-        check(context.getSharedPreferences("FlutterSecureKeyStorage", Context.MODE_PRIVATE).edit().clear().commit())
     }
 }

@@ -23,10 +23,7 @@ data class Credential(
             listOf("id", "title", "website", "username", "password", "note", "category", "createdAt", "updatedAt")
                 .forEach { require(json.get(it) is String) { "备份账号字段无效：$it" } }
             require(json.get("favorite") is Boolean && json.getString("id").isNotBlank())
-            fun time(value: String): Long = runCatching { Instant.parse(value).toEpochMilli() }.getOrElse {
-                // Dart emits local timestamps without an offset; use the device's local zone.
-                java.time.LocalDateTime.parse(value).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-            }
+            fun time(value: String): Long = Instant.parse(value).toEpochMilli()
             return Credential(json.getString("id"), json.getString("title"), json.getString("website"),
                 json.getString("username"), json.getString("password"), json.getString("note"),
                 json.getString("category"), json.getBoolean("favorite"), time(json.getString("createdAt")),

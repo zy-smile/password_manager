@@ -22,24 +22,18 @@ object BackupCodec {
                 .toString(2).also { require(it.toByteArray().size <= MAX_BYTES) { "备份文件过大" } }
         } finally { key.fill(0) }
     }
-    fun decode(text: String, password: String, legacyDataKey: ByteArray? = null): List<Credential> {
+    fun decode(text: String, password: String): List<Credential> {
         require(text.toByteArray().size <= MAX_BYTES) { "备份文件过大" }
         val json = JSONObject(text)
         val version = json.getString("version")
-        require(version in listOf("1.0", "2.0") && json.getString("encryption") == "AES-256-GCM") { "不支持的备份版本或算法" }
-        if (version == "2.0") require(json.getString("kdf") == "PBKDF2-SHA256" &&
+        require(version == "2.0" && json.getString("encryption") == "AES-256-GCM") { "不支持的备份版本或算法" }
+        require(json.getString("kdf") == "PBKDF2-SHA256" &&
             json.getInt("iterations") == Crypto.ITERATIONS) { "不支持的密钥派生参数" }
         val salt = json.getString("salt")
         require(Crypto.decode(salt).size == 16)
-        val secret = if (version == "1.0") {
-            requireNotNull(legacyDataKey) { "旧备份需要原保险箱密钥" }
-            val hash = Crypto.sha256("${json.getString("cipherText")}:$salt:${json.getString("iv")}".toByteArray())
-                .joinToString("") { "%02x".format(it) }
-            require(hash == json.getString("hash")) { "旧备份校验失败" }
-            Crypto.encode(legacyDataKey)
-        } else password.also { require(it.isNotEmpty()) { "请输入备份密码" } }
-        val key = Crypto.derive(secret, Crypto.decode(salt))
-        val plain = try { Crypto.decrypt(json, key, if (version == "2.0") aad(salt) else "") }
+        require(password.isNotEmpty()) { "请输入备份密码" }
+        val key = Crypto.derive(password, Crypto.decode(salt))
+        val plain = try { Crypto.decrypt(json, key, aad(salt)) }
             catch (e: Exception) { throw IllegalArgumentException("备份密码错误或文件已损坏", e) }
             finally { key.fill(0) }
         val accounts = JSONObject(plain).getJSONArray("accounts")

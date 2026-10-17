@@ -2,13 +2,11 @@ package com.example.password_manager.core
 
 import org.json.JSONObject
 import java.nio.ByteBuffer
-import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 object Crypto {
@@ -17,9 +15,8 @@ object Crypto {
     fun randomBytes(size: Int) = ByteArray(size).also(random::nextBytes)
     fun encode(bytes: ByteArray): String = Base64.getEncoder().encodeToString(bytes)
     fun decode(value: String): ByteArray = Base64.getMimeDecoder().decode(value)
-    fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
 
-    // UTF-8 password bytes match the previous Dart implementation, including Unicode.
+    // Derive from UTF-8 bytes consistently for ASCII and Unicode passwords.
     fun derive(password: String, salt: ByteArray, iterations: Int = ITERATIONS): ByteArray {
         require(iterations in 1..1_000_000) { "不支持的密钥派生参数" }
         val mac = Mac.getInstance("HmacSHA256")
@@ -54,17 +51,6 @@ object Crypto {
         return String(cipher.doFinal(decode(payload.getString("cipherText"))), Charsets.UTF_8)
     }
     fun decrypt(payload: String, key: ByteArray) = decrypt(JSONObject(payload), key)
-
-    fun decryptLegacy(value: String, password: String): String {
-        val bytes = decode(value)
-        require(bytes.size > 16)
-        val key = ByteArray(32) { i -> ((password.getOrNull(i)?.code ?: 0) xor (i * 17)).toByte() }
-        return try {
-            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-            cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(bytes.copyOfRange(0, 16)))
-            String(cipher.doFinal(bytes.copyOfRange(16, bytes.size)), Charsets.UTF_8)
-        } finally { key.fill(0) }
-    }
 
     fun validatePassword(password: String) {
         require(password.length >= 8 && password.any { it in '0'..'9' }) { "主密码至少 8 位，且包含数字" }

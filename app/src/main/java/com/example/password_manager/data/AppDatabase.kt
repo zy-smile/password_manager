@@ -32,33 +32,18 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "password_vault.
         db.execSQL("CREATE INDEX IF NOT EXISTS wardrobe_sort ON wardrobe_items(is_favorite DESC,updated_at DESC)")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) {
-            val columns = db.rawQuery("PRAGMA table_info(vault_accounts)", null).use { c ->
-                buildSet { while(c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name"))) }
-            }
-            mapOf("website" to "TEXT DEFAULT ''", "username_encrypted" to "TEXT", "note_encrypted" to "TEXT",
-                "encryption_version" to "INTEGER DEFAULT 1").forEach { (name, type) ->
-                if (name !in columns) db.execSQL("ALTER TABLE vault_accounts ADD COLUMN $name $type")
-            }
-        }
-        if (oldVersion < 3) createWardrobe(db)
+        check(oldVersion >= 4) { "不支持旧数据库，请清除应用数据后重新设置" }
         indexes(db)
     }
     fun accountCount(): Long = readableDatabase.rawQuery("SELECT COUNT(*) FROM vault_accounts", null)
         .use { it.moveToFirst(); it.getLong(0) }
     private fun Cursor.text(name: String) = getString(getColumnIndexOrThrow(name)) ?: ""
     private fun Cursor.long(name: String) = getLong(getColumnIndexOrThrow(name))
-    private fun Cursor.credential(key: ByteArray, legacyPassword: String? = null): Credential {
-        val legacy = getInt(getColumnIndexOrThrow("encryption_version")) < 2
-        fun sensitive(encrypted: String, clear: String): String {
-            val value = text(encrypted)
-            return if (value.isBlank()) text(clear) else Crypto.decrypt(value, key)
-        }
-        val password = if (legacy) Crypto.decryptLegacy(text("password_encrypted"),
-            requireNotNull(legacyPassword) { "旧数据需要主密码迁移" }) else Crypto.decrypt(text("password_encrypted"), key)
+    private fun Cursor.credential(key: ByteArray): Credential {
+        check(getInt(getColumnIndexOrThrow("encryption_version")) == 2) { "不支持的账号加密格式" }
         return Credential(text("id"), text("platform_name"), text("website"),
-            if (legacy) text("username") else sensitive("username_encrypted", "username"), password,
-            if (legacy) text("note") else sensitive("note_encrypted", "note"), text("category"),
+            Crypto.decrypt(text("username_encrypted"), key), Crypto.decrypt(text("password_encrypted"), key),
+            Crypto.decrypt(text("note_encrypted"), key), text("category"),
             long("is_favorite") == 1L, long("created_at"), long("updated_at"))
     }
     fun accounts(key: ByteArray): List<Credential> = readableDatabase.query("vault_accounts", null,
@@ -90,12 +75,6 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "password_vault.
             values.forEach { writableDatabase.insertOrThrow("vault_accounts", null, it) }
             writableDatabase.setTransactionSuccessful()
         } finally { writableDatabase.endTransaction() }
-    }
-    fun migrateLegacy(password: String, key: ByteArray) {
-        val records = readableDatabase.query("vault_accounts", null, null, null, null, null, null).use { c ->
-            buildList { while(c.moveToNext()) add(c.credential(key, password)) }
-        }
-        replace(records, key)
     }
     fun clothing(): List<Clothing> = readableDatabase.query("wardrobe_items", null, null, null, null, null,
         "is_favorite DESC, updated_at DESC").use { c ->

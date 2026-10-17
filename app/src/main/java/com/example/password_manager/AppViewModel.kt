@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.password_manager.core.DocumentBackupWriter
 import com.example.password_manager.core.BackupCodec
 import com.example.password_manager.core.SecureStore
 import com.example.password_manager.data.*
@@ -40,6 +41,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = AuthRepository(secureStore, database)
     var state by mutableStateOf(AppState()); private set
     private var dataKey: ByteArray? = null
+    private var pendingExport: ByteArray? = null
+    private var exportPreparedAt = 0L
+    private val expireExport = Runnable { cancelExport() }
     private val epoch = AtomicLong(0)
     private val mutex = Mutex()
     private val handler = Handler(Looper.getMainLooper())
@@ -194,8 +198,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun deletePhoto(path: String) {
         if (path.isBlank()) return
         val file = File(path).canonicalFile
-        val roots = listOf(photoDirectory(), File(context.applicationInfo.dataDir, "app_flutter/wardrobe_photos"))
-        if (roots.any { file.path.startsWith(it.canonicalPath + File.separator) }) file.delete()
+        if (file.path.startsWith(photoDirectory().canonicalPath + File.separator)) file.delete()
     }
     fun saveClothing(item: Clothing, photo: Uri?, done: () -> Unit) = work { token ->
         require(item.name.isNotBlank()) { "请填写衣服名称" }
@@ -220,18 +223,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refresh(token); done(); message("衣服已删除")
     }
     fun favorite(item: Clothing) = saveClothing(item.copy(favorite = !item.favorite), null) {}
-    fun exportBackup(password: String, result: (Uri) -> Unit) = work { token ->
+    fun prepareExport(password: String, chooseLocation: (String) -> Unit) = work { token ->
         val accounts = state.accounts
-        val file = withContext(Dispatchers.IO) {
-            val text = BackupCodec.encode(accounts, password)
+        val bytes = withContext(Dispatchers.IO) { BackupCodec.encode(accounts, password).toByteArray(Charsets.UTF_8) }
+        try {
             ensureSession(token)
-            File(context.cacheDir, "backups").apply { mkdirs() }.let { dir ->
-                dir.listFiles()?.forEach { it.delete() }
-                File(dir, "personal-assistant-${System.currentTimeMillis()}.json").apply { writeText(text) }
-            }
+            cancelExport()
+            pendingExport = bytes
+            exportPreparedAt = SystemClock.elapsedRealtime()
+            handler.postDelayed(expireExport, 15 * 60_000L)
+            // Only encrypted bytes survive leaving the app for the save dialog.
+            chooseLocation("personal-assistant-${System.currentTimeMillis()}.json")
+        } catch (e: Exception) { bytes.fill(0); cancelExport(); throw e }
+    }
+    fun cancelExport() {
+        handler.removeCallbacks(expireExport)
+        pendingExport?.fill(0); pendingExport = null
+    }
+    fun completeExport(uri: Uri?) {
+        if (uri == null) { cancelExport(); return }
+        work(false) {
+            val bytes = pendingExport ?: error("导出会话已失效，请重新导出")
+            require(SystemClock.elapsedRealtime() - exportPreparedAt < 15 * 60_000L) { "导出会话已过期，请重新导出" }
+            pendingExport = null; handler.removeCallbacks(expireExport)
+            try {
+                withContext(Dispatchers.IO) { DocumentBackupWriter(context).write(uri, bytes) }
+                message("备份已保存到所选位置，卸载应用不会删除此文件")
+            } finally { bytes.fill(0) }
         }
-        ensureSession(token)
-        result(androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file))
     }
     fun importBackup(uri: Uri, password: String, done: () -> Unit) = work { token ->
         val key = requireNotNull(dataKey).clone()
@@ -239,7 +258,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.IO) {
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytesLimited(BackupCodec.MAX_BYTES) }
                     ?: error("无法读取备份文件")
-                val accounts = BackupCodec.decode(String(bytes, Charsets.UTF_8), password, key)
+                val accounts = BackupCodec.decode(String(bytes, Charsets.UTF_8), password)
                 ensureSession(token); database.replace(accounts, key) { ensureSession(token) }
             }
         } finally { key.fill(0) }
@@ -250,15 +269,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ensureSession(token)
             database.clear()
             photoDirectory().listFiles()?.forEach { it.delete() }
-            File(context.applicationInfo.dataDir, "app_flutter/wardrobe_photos").listFiles()?.forEach { it.delete() }
-            File(context.applicationInfo.dataDir, "app_flutter/backups").listFiles()?.forEach { it.delete() }
-            File(context.cacheDir, "backups").listFiles()?.forEach { it.delete() }
             secureStore.clear()
         }
         lock(); state = state.copy(firstLaunch = true, lockMinutes = 5, biometricEnabled = false)
     }
     override fun onCleared() {
-        dataKey?.fill(0); handler.removeCallbacksAndMessages(null); database.close()
+        cancelExport(); dataKey?.fill(0); handler.removeCallbacksAndMessages(null); database.close()
         super.onCleared()
     }
 }
